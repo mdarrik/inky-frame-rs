@@ -1,0 +1,19 @@
+[package]
+name = "inky-frame-rs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Darrik Moberg <30670444+mdarrik@users.noreply.github.com>"]
+keywords = ["no-std", "e-ink", "embedded-graphics"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-graphics = { git = "https://github.com/embedded-graphics/embedded-graphics", rev = "2e65f5c82c9718be3ebf20dc0fff3514d5dd9ae0", version = "0.7.1", optional = true }
+embedded-hal = "0.2.7"
+embedded-hal-async = { version = "0.1.0-alpha.3", optional = true }
+
+[features]
+display = ["embedded-graphics"]
+async = ["embedded-hal-async"]
+default = ["display", "async"]
