@@ -3,3 +3,7 @@
 pub(crate) trait Command {
     fn address(self) -> u8;
 }
+
+pub trait IsBusy {
+    fn is_busy(&mut self) -> bool;
+}
