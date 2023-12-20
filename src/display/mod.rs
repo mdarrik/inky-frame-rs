@@ -17,8 +17,8 @@ use color::OctColor;
 pub use display::Display5in65f;
 pub use traits::IsBusy;
 use embedded_hal::{
-    blocking::{delay::*, spi::Write},
-    digital::v2::{InputPin, OutputPin},
+    blocking::spi::Write,
+    digital::v2::OutputPin,
 };
 
 use self::command::Command;
@@ -49,18 +49,18 @@ where
     pub const WIDTH: u32 = WIDTH;
     pub const HEIGHT: u32 = HEIGHT;
 
-    pub fn new(spi: &mut SPI, cs: CS, dc: DC, rst: RST) -> Result<Self, SPI::Error> {
+    pub fn new(spi: &mut SPI, cs: CS, dc: DC, rst: RST, busy_signal: &mut impl IsBusy) -> Result<Self, SPI::Error> {
         let interface = DisplayInterface::new(cs, dc, rst);
         let color = DEFAULT_BACKGROUND_COLOR;
 
         let mut epd = Epd5in65f { interface, color };
-        epd.init(spi)?;
+        epd.init(spi, busy_signal)?;
 
         Ok(epd)
     }
 
-    fn init(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
-        self.interface.reset();
+    fn init(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy  ) -> Result<(), SPI::Error> {
+        self.interface.reset(busy_signal);
 
         self.cmd_with_data(spi, Command::PanelSetting, &[0xEF, 0x08])?;
         self.cmd_with_data(spi, Command::PowerSetting, &[0x37, 0x00, 0x23, 0x23])?;
@@ -83,49 +83,50 @@ where
         self.interface.cmd(spi, Command::PowerOff)
     }
 
-    pub fn wake_up(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
-        self.init(spi)
+    pub fn wake_up(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+        self.init(spi, busy_signal)
     }
 
     pub fn sleep(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
         self.cmd_with_data(spi, Command::DeepSleep, &[0xA5])
     }
 
-    pub fn update_frame(&mut self, spi: &mut SPI, buffer: &[u8]) -> Result<(), SPI::Error> {
-        self.busy_wait();
+    pub fn update_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy , buffer: &[u8]) -> Result<(), SPI::Error> {
+        self.busy_wait(busy_signal);
         self.update_vcom(spi)?;
         self.send_resolution(spi)?;
         self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)
     }
 
-    pub fn display_frame(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
-        self.busy_wait();
+    pub fn display_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+        self.busy_wait(busy_signal);
         self.command(spi, Command::PowerOn)?;
-        self.busy_wait();
+        self.busy_wait(busy_signal);
         self.command(spi, Command::DisplayRefresh)?;
-        self.busy_wait();
+        self.busy_wait(busy_signal);
         self.command(spi, Command::PowerOff)?;
-        self.busy_wait();
+        self.busy_wait(busy_signal);
         Ok(())
     }
 
     pub fn update_and_display_frame(
         &mut self,
         spi: &mut SPI,
+        busy_signal: &mut impl IsBusy,
         buffer: &[u8],
     ) -> Result<(), SPI::Error> {
-        self.update_frame(spi, buffer)?;
-        self.display_frame(spi)?;
+        self.update_frame(spi, busy_signal, buffer)?;
+        self.display_frame(spi, busy_signal)?;
         Ok(())
     }
 
-    pub fn clear_frame(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
+    pub fn clear_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
         let bg = OctColor::colors_byte(self.color, self.color);
-        self.busy_wait();
+        self.busy_wait(busy_signal);
         self.update_vcom(spi)?;
         self.send_resolution(spi)?;
         self.command(spi, Command::DataStartTransmission1)?;
-        self.display_frame(spi)?;
+        self.display_frame(spi, busy_signal)?;
         Ok(())
     }
 
@@ -175,7 +176,7 @@ where
         Ok(())
     }
 
-    fn busy_wait(&mut self) {
-        // self.interface.wait_until_idle(100, delay)
+    fn busy_wait(&mut self, busy_signal: &mut impl IsBusy) {
+        self.interface.wait_until_idle(busy_signal)
     }
 }

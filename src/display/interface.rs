@@ -2,9 +2,11 @@ use crate::display::traits::Command;
 use core::marker::PhantomData;
 
 use embedded_hal::{
-    blocking::{delay::*, spi::Write},
-    digital::v2::{InputPin, OutputPin},
+    blocking::spi::Write,
+    digital::v2::OutputPin,
 };
+
+use super::IsBusy;
 /// Interface for the display
 pub(crate) struct DisplayInterface<SPI, CS, DC, RST> {
     /// SPI
@@ -105,8 +107,8 @@ where
     }
 
     /// waits until the device is not busy
-    pub(crate) fn wait_until_idle(&mut self, timeout: u8) {
-        // while self.is_busy(timeout) {}
+    pub(crate) fn wait_until_idle(&mut self, busy_signal: &mut impl IsBusy) {
+        while busy_signal.is_busy() {}
     }
 
     /// Checks if device is still busy - use a timeout since we don't have a busy pin on the inky-frame
@@ -115,11 +117,11 @@ where
     //     return true;
     // }
 
-    pub(crate) fn reset(&mut self) {
+    pub(crate) fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
         // delay.delay_ms(10);
         let _ = self.rst.set_high();
         // delay.delay_ms(10);
-        // self.wait_until_idle(200, delay);
+        self.wait_until_idle(busy_signal);
     }
 }
