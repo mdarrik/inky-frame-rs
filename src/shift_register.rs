@@ -8,10 +8,10 @@ pub struct InkyFrameShiftRegister<GpioOutput, GpioInput> {
 
 const IS_BUSY_FLAG: u8 = 7;
 
-impl<GpioOutput, GpioInput> InkyFrameShiftRegister<GpioOutput, GpioInput>
+impl<GpioOutput, GpioInput, GpioE> InkyFrameShiftRegister<GpioOutput, GpioInput>
 where
-    GpioOutput: OutputPin,
-    GpioInput: InputPin,
+    GpioOutput: OutputPin<Error = GpioE>,
+    GpioInput: InputPin<Error = GpioE>,
 {
     pub fn new(clock_pin: GpioOutput, latch_pin: GpioOutput, out_pin: GpioInput) -> Self {
         InkyFrameShiftRegister {
@@ -21,12 +21,7 @@ where
         }
     }
 
-    pub fn read_register<
-        E: core::convert::From<<GpioInput as embedded_hal::digital::v2::InputPin>::Error>
-            + core::convert::From<<GpioOutput as embedded_hal::digital::v2::OutputPin>::Error>,
-    >(
-        &mut self,
-    ) -> Result<u8, E> {
+    pub fn read_register(&mut self) -> Result<u8, GpioE> {
         self.latch_pin.set_low()?;
         self.latch_pin.set_high()?;
         let mut result = 0u8;
@@ -47,21 +42,15 @@ where
         Ok(result)
     }
 
-    pub fn read_register_bit<
-        E: core::convert::From<<GpioInput as embedded_hal::digital::v2::InputPin>::Error>
-            + core::convert::From<<GpioOutput as embedded_hal::digital::v2::OutputPin>::Error>,
-    >(
-        &mut self,
-        bit_index: u8,
-    ) -> Result<u8, E> {
-        Ok(self.read_register::<E>()? & (1u8 << bit_index))
+    pub fn read_register_bit(&mut self, bit_index: u8) -> Result<u8, GpioE> {
+        Ok(self.read_register()? & (1u8 << bit_index))
     }
 }
 
-impl<GpioOutput, GpioInput> IsBusy for InkyFrameShiftRegister<GpioOutput, GpioInput>
+impl<GpioOutput, GpioInput, GpioE> IsBusy for InkyFrameShiftRegister<GpioOutput, GpioInput>
 where
-    GpioOutput: OutputPin,
-    GpioInput: InputPin,
+    GpioOutput: OutputPin<Error = GpioE>,
+    GpioInput: InputPin<Error = GpioE>,
 {
     fn is_busy(&mut self) -> bool {
         if let Ok(res) = self.read_register_bit(IS_BUSY_FLAG) {
