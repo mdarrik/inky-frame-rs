@@ -7,7 +7,7 @@ use super::{color::OctColor, DEFAULT_BACKGROUND_COLOR, HEIGHT, WIDTH};
 /// Can also be manually constructed:
 /// `buffer: [DEFAULT_BACKGROUND_COLOR.get_byte_value(); WIDTH / 2 * HEIGHT]`
 pub struct Display5in65f {
-    buffer: [u8; WIDTH as usize * HEIGHT as usize / 2],
+    buffer: [u8; WIDTH as usize / 2 * HEIGHT as usize],
     rotation: DisplayRotation,
 }
 
@@ -15,7 +15,7 @@ impl Default for Display5in65f {
     fn default() -> Self {
         Display5in65f {
             buffer: [OctColor::colors_byte(DEFAULT_BACKGROUND_COLOR, DEFAULT_BACKGROUND_COLOR);
-                WIDTH as usize * HEIGHT as usize / 2],
+                WIDTH as usize / 2 * HEIGHT as usize],
             rotation: DisplayRotation::default(),
         }
     }
@@ -30,7 +30,7 @@ impl DrawTarget for Display5in65f {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for pixel in pixels {
-            self.draw_helper(WIDTH, HEIGHT, pixel)?;
+            // self.draw_helper(WIDTH, HEIGHT, pixel)?;
         }
         Ok(())
     }
@@ -38,20 +38,20 @@ impl DrawTarget for Display5in65f {
 
 impl OriginDimensions for Display5in65f {
     fn size(&self) -> Size {
-        Size::new(WIDTH, HEIGHT)
+        Size::new(WIDTH.into(), HEIGHT.into())
     }
 }
 
 impl Display5in65f {
     /// Clears the buffer of the display with the chosen background color
-   pub fn clear_buffer(&mut self, background_color: OctColor) {
+    pub fn clear_buffer(&mut self, background_color: OctColor) {
         for elem in self.get_mut_buffer().iter_mut() {
             *elem = OctColor::colors_byte(background_color, background_color);
         }
     }
 
     /// Returns the buffer
-   pub fn buffer(&self) -> &[u8] {
+    pub fn buffer(&self) -> &[u8] {
         &self.buffer
     }
 
@@ -61,7 +61,7 @@ impl Display5in65f {
     }
 
     /// Sets the rotation of the display
-   pub fn set_rotation(&mut self, rotation: DisplayRotation) {
+    pub fn set_rotation(&mut self, rotation: DisplayRotation) {
         self.rotation = rotation;
     }
 
@@ -77,26 +77,50 @@ impl Display5in65f {
         height: u32,
         pixel: Pixel<OctColor>,
     ) -> Result<(), core::convert::Infallible> {
-        let rotation = self.rotation();
-        let buffer = self.get_mut_buffer();
+        // let rotation = self.rotation();
+        // let buffer = self.get_mut_buffer();
 
-        let Pixel(point, color) = pixel;
-        if outside_display(point, width, height, rotation) {
-            return Ok(());
-        }
+        // let Pixel(point, color) = pixel;
+        // defmt::info!(
+        //     "got point ({},{}), color {:?} from pixel",
+        //     point.x,
+        //     point.y,
+        //     color
+        // );
+        // if outside_display(point, width, height, rotation) {
+        //     defmt::info!("outside display ({},{})", point.x, point.y);
+        //     return Ok(());
+        // }
 
-        // Give us index inside the buffer and the bit-position in that u8 which needs to be changed
-        let (index, upper) =
-            find_oct_position(point.x as u32, point.y as u32, width, height, rotation);
-        let index = index as usize;
+        // defmt::info!("point inside display, getting oct position");
+        // // Give us index inside the buffer and the bit-position in that u8 which needs to be changed
+        // let (index, upper) =
+        //     find_oct_position(point.x as u32, point.y as u32, width, height, rotation);
+        // defmt::info!("got oct position {}", index);
+        // let index = index as usize;
 
-        // "Draw" the Pixel on that bit
-        let (mask, color_nibble) = if upper {
-            (0x0f, color.get_nibble() << 4)
-        } else {
-            (0xf0, color.get_nibble())
-        };
-        buffer[index] = (buffer[index] & mask) | color_nibble;
+        // // "Draw" the Pixel on that bit
+        // let (mask, color_nibble) = if upper {
+        //     (0x0f, color.get_nibble() << 4)
+        // } else {
+        //     (0xf0, color.get_nibble())
+        // };
+
+        // defmt::info!("Getting point from buffer");
+        // match buffer.get_mut(index) {
+        //     None => {
+        //         defmt::warn!(
+        //             "index out of buffer, {} - point ({}, {})",
+        //             index,
+        //             point.x,
+        //             point.y
+        //         );
+        //         ()
+        //     }
+        //     Some(i) => {
+        //         *i = (*i & mask) | color_nibble;
+        //     }
+        // }
         Ok(())
     }
 }

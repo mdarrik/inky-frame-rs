@@ -14,7 +14,7 @@ impl OutOfColorRangeParseError {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, defmt::Format)]
 pub enum OctColor {
     /// Black Color
     Black = 0x00,
