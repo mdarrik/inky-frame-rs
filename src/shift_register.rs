@@ -25,7 +25,7 @@ where
         self.latch_pin.set_low()?;
         self.latch_pin.set_high()?;
         let mut result = 0u8;
-        let mut bits = 0u8;
+        let mut bits = 8u8;
 
         while bits > 0 {
             bits -= 1;
