@@ -2,15 +2,15 @@ use crate::display::traits::Command;
 use core::marker::PhantomData;
 
 use embedded_hal::{
-    blocking::{delay::*, spi::Write},
-    digital::v2::{InputPin, OutputPin},
+    blocking::spi::Write,
+    digital::v2::OutputPin,
 };
+
+use super::IsBusy;
 /// Interface for the display
-pub(crate) struct DisplayInterface<SPI, CS, DC, RST, DELAY> {
+pub(crate) struct DisplayInterface<SPI, CS, DC, RST> {
     /// SPI
     _spi: PhantomData<SPI>,
-    /// DELAY
-    _delay: PhantomData<DELAY>,
     /// Chip Select for SPI
     cs: CS,
     /// Data/Command Control Pin (High for data, Low for command)
@@ -19,18 +19,16 @@ pub(crate) struct DisplayInterface<SPI, CS, DC, RST, DELAY> {
     rst: RST,
 }
 
-impl<SPI, CS, DC, RST, DELAY> DisplayInterface<SPI, CS, DC, RST, DELAY>
+impl<SPI, CS, DC, RST> DisplayInterface<SPI, CS, DC, RST>
 where
     SPI: Write<u8>,
     CS: OutputPin,
     DC: OutputPin,
     RST: OutputPin,
-    DELAY: DelayMs<u8>,
 {
     pub fn new(cs: CS, dc: DC, rst: RST) -> Self {
         DisplayInterface {
             _spi: PhantomData::default(),
-            _delay: PhantomData::default(),
             cs,
             dc,
             rst,
@@ -109,21 +107,21 @@ where
     }
 
     /// waits until the device is not busy
-    pub(crate) fn wait_until_idle(&mut self, timeout: u8, delay: &mut DELAY) {
-        while self.is_busy(timeout, delay) {}
+    pub(crate) fn wait_until_idle(&mut self, busy_signal: &mut impl IsBusy) {
+        while busy_signal.is_busy() {}
     }
 
     /// Checks if device is still busy - use a timeout since we don't have a busy pin on the inky-frame
-    pub(crate) fn is_busy(&mut self, timeout: u8, delay: &mut DELAY) -> bool {
-        delay.delay_ms(timeout);
-        return true;
-    }
+    // pub(crate) fn is_busy(&mut self, timeout: u8) -> bool {
+    //     delay.delay_ms(timeout);
+    //     return true;
+    // }
 
-    pub(crate) fn reset(&mut self, delay: &mut DELAY) {
+    pub(crate) fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
-        delay.delay_ms(10);
+        // delay.delay_ms(10);
         let _ = self.rst.set_high();
-        delay.delay_ms(10);
-        self.wait_until_idle(200, delay);
+        // delay.delay_ms(10);
+        self.wait_until_idle(busy_signal);
     }
 }
