@@ -6,6 +6,12 @@ pub mod color;
  * to the UC8159 driver of the inky frame.
  * ISC: https://github.com/caemor/epd-waveshare/blob/main/License.md
  *
+ * Also includes code adapted from pimoroni's uc8159 driver https://github.com/pimoroni/pimoroni-pico/blob/main/drivers/uc8159/uc8159.cpp
+ * MIT License: https://github.com/pimoroni/pimoroni-pico/blob/main/LICENSE
+ *
+ * Some code also adapted from an existing uc8159 Rust driver
+ * https://github.com/dflemstr/uc8159
+ *
  */
 mod command;
 mod display;
@@ -14,7 +20,7 @@ mod traits;
 
 use crate::display::interface::DisplayInterface;
 use color::OctColor;
-pub use display::Display5in65f;
+pub use display::InkyFrameDisplay;
 use embedded_hal::{blocking::spi::Write, digital::v2::OutputPin};
 pub use traits::IsBusy;
 
@@ -29,14 +35,14 @@ pub const DEFAULT_BACKGROUND_COLOR: OctColor = OctColor::White;
 
 /// Epd5in65f driver
 ///
-pub struct Epd5in65f<SPI, CS, DC, RST> {
+pub struct InkyFrame5_7<SPI, CS, DC, RST> {
     /// Connection Interface
     interface: DisplayInterface<SPI, CS, DC, RST>,
     /// Background Color
     color: OctColor,
 }
 
-impl<SPI, CS, DC, RST> Epd5in65f<SPI, CS, DC, RST>
+impl<SPI, CS, DC, RST> InkyFrame5_7<SPI, CS, DC, RST>
 where
     SPI: Write<u8>,
     CS: OutputPin,
@@ -56,7 +62,7 @@ where
         let interface = DisplayInterface::new(cs, dc, rst);
         let color = DEFAULT_BACKGROUND_COLOR;
 
-        let mut epd = Epd5in65f { interface, color };
+        let mut epd = InkyFrame5_7 { interface, color };
         epd.init(spi, busy_signal)?;
 
         Ok(epd)

@@ -2,18 +2,18 @@ use embedded_graphics::prelude::*;
 
 use super::{color::OctColor, DEFAULT_BACKGROUND_COLOR, HEIGHT, WIDTH};
 
-/// Full size buffer for use with the 5in65f EPD
-///
+/// Full size buffer for use with the Inky Frame's Display
+/// Handles making inky frame compatible with Embedded Graphics
 /// Can also be manually constructed:
 /// `buffer: [DEFAULT_BACKGROUND_COLOR.get_byte_value(); WIDTH / 2 * HEIGHT]`
-pub struct Display5in65f {
+pub struct InkyFrameDisplay {
     buffer: [u8; WIDTH as usize / 2 * HEIGHT as usize],
     rotation: DisplayRotation,
 }
 
-impl Default for Display5in65f {
+impl Default for InkyFrameDisplay {
     fn default() -> Self {
-        Display5in65f {
+        InkyFrameDisplay {
             buffer: [OctColor::colors_byte(DEFAULT_BACKGROUND_COLOR, DEFAULT_BACKGROUND_COLOR);
                 WIDTH as usize / 2 * HEIGHT as usize],
             rotation: DisplayRotation::default(),
@@ -21,7 +21,7 @@ impl Default for Display5in65f {
     }
 }
 
-impl DrawTarget for Display5in65f {
+impl DrawTarget for InkyFrameDisplay {
     type Color = OctColor;
     type Error = core::convert::Infallible;
 
@@ -36,13 +36,13 @@ impl DrawTarget for Display5in65f {
     }
 }
 
-impl OriginDimensions for Display5in65f {
+impl OriginDimensions for InkyFrameDisplay {
     fn size(&self) -> Size {
         Size::new(WIDTH.into(), HEIGHT.into())
     }
 }
 
-impl Display5in65f {
+impl InkyFrameDisplay {
     /// Clears the buffer of the display with the chosen background color
     pub fn clear_buffer(&mut self, background_color: OctColor) {
         for elem in self.get_mut_buffer().iter_mut() {
@@ -184,35 +184,34 @@ fn find_oct_position(
     height: u32,
     rotation: DisplayRotation,
 ) -> (u32, bool) {
-    let (nx, ny) = find_rotation(x, y, width, height, rotation);
+    let (new_x, new_y) = find_rotation(x, y, width, height, rotation);
     (
-        /* what byte address is this? */
-        nx / 2 + (width / 2) * ny,
-        /* is this the lower nibble (within byte)? */
-        (nx & 0x1) == 0,
+        new_x / 2 + (width / 2) * new_y,
+        // is this an upper or lower bit position in the slice
+        (new_x & 0x1) == 0,
     )
 }
 
 fn find_rotation(x: u32, y: u32, width: u32, height: u32, rotation: DisplayRotation) -> (u32, u32) {
-    let nx;
-    let ny;
+    let new_x;
+    let new_y;
     match rotation {
         DisplayRotation::Rotate0 => {
-            nx = x;
-            ny = y;
+            new_x = x;
+            new_y = y;
         }
         DisplayRotation::Rotate90 => {
-            nx = width - 1 - y;
-            ny = x;
+            new_x = width - 1 - y;
+            new_y = x;
         }
         DisplayRotation::Rotate180 => {
-            nx = width - 1 - x;
-            ny = height - 1 - y;
+            new_x = width - 1 - x;
+            new_y = height - 1 - y;
         }
         DisplayRotation::Rotate270 => {
-            nx = y;
-            ny = height - 1 - x;
+            new_x = y;
+            new_y = height - 1 - x;
         }
     }
-    (nx, ny)
+    (new_x, new_y)
 }
