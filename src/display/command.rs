@@ -1,5 +1,5 @@
 use crate::display::traits;
-
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(crate) enum Command {
     /// Set Resolution, LUT selection, BWR pixels, gate scan direction, source shift
