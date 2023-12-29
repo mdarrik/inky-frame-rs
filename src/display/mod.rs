@@ -106,7 +106,8 @@ where
         self.busy_wait(busy_signal);
         self.update_vcom(spi)?;
         self.send_resolution(spi)?;
-        self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)
+        self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)?;
+        self.command(spi, Command::DataStop)
     }
 
     pub fn display_frame(

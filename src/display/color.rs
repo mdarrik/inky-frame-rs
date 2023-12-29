@@ -13,8 +13,8 @@ impl OutOfColorRangeParseError {
         OutOfColorRangeParseError(size)
     }
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OctColor {
     /// Black Color
     Black = 0x00,

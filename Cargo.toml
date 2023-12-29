@@ -9,10 +9,11 @@ keywords = ["no-std", "e-ink", "embedded-graphics"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-defmt = "0.3"
-embedded-graphics = { git = "https://github.com/embedded-graphics/embedded-graphics", rev = "2e65f5c82c9718be3ebf20dc0fff3514d5dd9ae0", version = "0.7.1", optional = true }
+defmt = {version = "0.3", optional = true}
+embedded-graphics = { version = "0.8.1", optional = true, features = ["defmt"] }
 embedded-hal = { version = "0.2.7", features = ["unproven"] }
 
 [features]
-display = ["embedded-graphics"]
+display = ["dep:embedded-graphics"]
+defmt = ["dep:defmt"]
 default = ["display"]

@@ -30,7 +30,7 @@ impl DrawTarget for Display5in65f {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for pixel in pixels {
-            // self.draw_helper(WIDTH, HEIGHT, pixel)?;
+            self.draw_helper(WIDTH, HEIGHT, pixel)?;
         }
         Ok(())
     }
@@ -77,50 +77,41 @@ impl Display5in65f {
         height: u32,
         pixel: Pixel<OctColor>,
     ) -> Result<(), core::convert::Infallible> {
-        // let rotation = self.rotation();
-        // let buffer = self.get_mut_buffer();
+        let rotation = self.rotation();
+        let buffer = self.get_mut_buffer();
 
-        // let Pixel(point, color) = pixel;
-        // defmt::info!(
-        //     "got point ({},{}), color {:?} from pixel",
-        //     point.x,
-        //     point.y,
-        //     color
-        // );
-        // if outside_display(point, width, height, rotation) {
-        //     defmt::info!("outside display ({},{})", point.x, point.y);
-        //     return Ok(());
-        // }
+        let Pixel(point, color) = pixel;
+        if outside_display(point, width, height, rotation) {
+            return Ok(());
+        }
 
-        // defmt::info!("point inside display, getting oct position");
-        // // Give us index inside the buffer and the bit-position in that u8 which needs to be changed
-        // let (index, upper) =
-        //     find_oct_position(point.x as u32, point.y as u32, width, height, rotation);
-        // defmt::info!("got oct position {}", index);
-        // let index = index as usize;
+        // Give us index inside the buffer and the bit-position in that u8 which needs to be changed
+        let (index, upper) =
+            find_oct_position(point.x as u32, point.y as u32, width, height, rotation);
+        let index = index as usize;
 
-        // // "Draw" the Pixel on that bit
-        // let (mask, color_nibble) = if upper {
-        //     (0x0f, color.get_nibble() << 4)
-        // } else {
-        //     (0xf0, color.get_nibble())
-        // };
+        // "Draw" the Pixel on that bit
+        let (mask, color_nibble) = if upper {
+            (0x0f, color.get_nibble() << 4)
+        } else {
+            (0xf0, color.get_nibble())
+        };
 
-        // defmt::info!("Getting point from buffer");
-        // match buffer.get_mut(index) {
-        //     None => {
-        //         defmt::warn!(
-        //             "index out of buffer, {} - point ({}, {})",
-        //             index,
-        //             point.x,
-        //             point.y
-        //         );
-        //         ()
-        //     }
-        //     Some(i) => {
-        //         *i = (*i & mask) | color_nibble;
-        //     }
-        // }
+        match buffer.get_mut(index) {
+            None => {
+                #[cfg(feature = "defmt")]
+                defmt::warn!(
+                    "index out of buffer, {} - point ({}, {})",
+                    index,
+                    point.x,
+                    point.y
+                );
+                ()
+            }
+            Some(i) => {
+                *i = (*i & mask) | color_nibble;
+            }
+        }
         Ok(())
     }
 }
