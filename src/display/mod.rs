@@ -6,6 +6,12 @@ pub mod color;
  * to the UC8159 driver of the inky frame.
  * ISC: https://github.com/caemor/epd-waveshare/blob/main/License.md
  *
+ * Also includes code adapted from pimoroni's uc8159 driver https://github.com/pimoroni/pimoroni-pico/blob/main/drivers/uc8159/uc8159.cpp
+ * MIT License: https://github.com/pimoroni/pimoroni-pico/blob/main/LICENSE
+ *
+ * Some code also adapted from an existing uc8159 Rust driver
+ * https://github.com/dflemstr/uc8159
+ *
  */
 mod command;
 mod display;
@@ -14,12 +20,9 @@ mod traits;
 
 use crate::display::interface::DisplayInterface;
 use color::OctColor;
-pub use display::Display5in65f;
+pub use display::InkyFrameDisplay;
+use embedded_hal::{blocking::spi::Write, digital::v2::OutputPin};
 pub use traits::IsBusy;
-use embedded_hal::{
-    blocking::spi::Write,
-    digital::v2::OutputPin,
-};
 
 use self::command::Command;
 
@@ -32,14 +35,14 @@ pub const DEFAULT_BACKGROUND_COLOR: OctColor = OctColor::White;
 
 /// Epd5in65f driver
 ///
-pub struct Epd5in65f<SPI, CS, DC, RST> {
+pub struct InkyFrame5_7<SPI, CS, DC, RST> {
     /// Connection Interface
     interface: DisplayInterface<SPI, CS, DC, RST>,
     /// Background Color
     color: OctColor,
 }
 
-impl<SPI, CS, DC, RST> Epd5in65f<SPI, CS, DC, RST>
+impl<SPI, CS, DC, RST> InkyFrame5_7<SPI, CS, DC, RST>
 where
     SPI: Write<u8>,
     CS: OutputPin,
@@ -49,19 +52,24 @@ where
     pub const WIDTH: u32 = WIDTH;
     pub const HEIGHT: u32 = HEIGHT;
 
-    pub fn new(spi: &mut SPI, cs: CS, dc: DC, rst: RST, busy_signal: &mut impl IsBusy) -> Result<Self, SPI::Error> {
+    pub fn new(
+        spi: &mut SPI,
+        cs: CS,
+        dc: DC,
+        rst: RST,
+        busy_signal: &mut impl IsBusy,
+    ) -> Result<Self, SPI::Error> {
         let interface = DisplayInterface::new(cs, dc, rst);
         let color = DEFAULT_BACKGROUND_COLOR;
 
-        let mut epd = Epd5in65f { interface, color };
+        let mut epd = InkyFrame5_7 { interface, color };
         epd.init(spi, busy_signal)?;
 
         Ok(epd)
     }
 
-    fn init(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy  ) -> Result<(), SPI::Error> {
+    fn init(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
         self.interface.reset(busy_signal);
-
         self.cmd_with_data(spi, Command::PanelSetting, &[0xEF, 0x08])?;
         self.cmd_with_data(spi, Command::PowerSetting, &[0x37, 0x00, 0x23, 0x23])?;
         self.cmd_with_data(spi, Command::PowerOffSequenceSetting, &[0x00])?;
@@ -83,7 +91,11 @@ where
         self.interface.cmd(spi, Command::PowerOff)
     }
 
-    pub fn wake_up(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+    pub fn wake_up(
+        &mut self,
+        spi: &mut SPI,
+        busy_signal: &mut impl IsBusy,
+    ) -> Result<(), SPI::Error> {
         self.init(spi, busy_signal)
     }
 
@@ -91,14 +103,24 @@ where
         self.cmd_with_data(spi, Command::DeepSleep, &[0xA5])
     }
 
-    pub fn update_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy , buffer: &[u8]) -> Result<(), SPI::Error> {
+    pub fn update_frame(
+        &mut self,
+        spi: &mut SPI,
+        busy_signal: &mut impl IsBusy,
+        buffer: &[u8],
+    ) -> Result<(), SPI::Error> {
         self.busy_wait(busy_signal);
         self.update_vcom(spi)?;
         self.send_resolution(spi)?;
-        self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)
+        self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)?;
+        self.command(spi, Command::DataStop)
     }
 
-    pub fn display_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+    pub fn display_frame(
+        &mut self,
+        spi: &mut SPI,
+        busy_signal: &mut impl IsBusy,
+    ) -> Result<(), SPI::Error> {
         self.busy_wait(busy_signal);
         self.command(spi, Command::PowerOn)?;
         self.busy_wait(busy_signal);
@@ -120,12 +142,17 @@ where
         Ok(())
     }
 
-    pub fn clear_frame(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+    pub fn clear_frame(
+        &mut self,
+        spi: &mut SPI,
+        busy_signal: &mut impl IsBusy,
+    ) -> Result<(), SPI::Error> {
         let bg = OctColor::colors_byte(self.color, self.color);
         self.busy_wait(busy_signal);
         self.update_vcom(spi)?;
         self.send_resolution(spi)?;
         self.command(spi, Command::DataStartTransmission1)?;
+        self.interface.data_x_times(spi, bg, WIDTH / 2 * HEIGHT)?;
         self.display_frame(spi, busy_signal)?;
         Ok(())
     }

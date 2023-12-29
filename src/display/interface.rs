@@ -111,17 +111,10 @@ where
         while busy_signal.is_busy() {}
     }
 
-    /// Checks if device is still busy - use a timeout since we don't have a busy pin on the inky-frame
-    // pub(crate) fn is_busy(&mut self, timeout: u8) -> bool {
-    //     delay.delay_ms(timeout);
-    //     return true;
-    // }
-
+    /// reset the display using the reset pin
     pub(crate) fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
-        // delay.delay_ms(10);
         let _ = self.rst.set_high();
-        // delay.delay_ms(10);
         self.wait_until_idle(busy_signal);
     }
 }
