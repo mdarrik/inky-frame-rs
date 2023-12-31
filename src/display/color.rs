@@ -56,6 +56,74 @@ impl From<OctColor> for embedded_graphics::pixelcolor::Rgb888 {
     }
 }
 
+impl From<embedded_graphics::pixelcolor::Rgb565> for OctColor {
+    fn from(p: embedded_graphics::pixelcolor::Rgb565) -> OctColor {
+        use embedded_graphics::prelude::RgbColor;
+        let colors = [
+            OctColor::Black,
+            OctColor::White,
+            OctColor::Green,
+            OctColor::Blue,
+            OctColor::Red,
+            OctColor::Yellow,
+            OctColor::Orange,
+            OctColor::HiZ,
+        ];
+        // if the user has already mapped to the right color space, it will just be in the list
+        if let Some(found) = colors.iter().find(|c| c.rgb() == (p.r(), p.g(), p.b())) {
+            return *found;
+        }
+
+        // This is not ideal but just pick the nearest color
+        *colors
+            .iter()
+            .map(|c| (c, c.rgb()))
+            .map(|(c, (r, g, b))| {
+                let dist = (i32::from(r) - i32::from(p.r())).pow(2)
+                    + (i32::from(g) - i32::from(p.g())).pow(2)
+                    + (i32::from(b) - i32::from(p.b())).pow(2);
+                (c, dist)
+            })
+            .min_by_key(|(_c, dist)| *dist)
+            .map(|(c, _)| c)
+            .unwrap_or(&OctColor::White)
+    }
+}
+
+impl From<embedded_graphics::pixelcolor::Rgb555> for OctColor {
+    fn from(p: embedded_graphics::pixelcolor::Rgb555) -> OctColor {
+        use embedded_graphics::prelude::RgbColor;
+        let colors = [
+            OctColor::Black,
+            OctColor::White,
+            OctColor::Green,
+            OctColor::Blue,
+            OctColor::Red,
+            OctColor::Yellow,
+            OctColor::Orange,
+            OctColor::HiZ,
+        ];
+        // if the user has already mapped to the right color space, it will just be in the list
+        if let Some(found) = colors.iter().find(|c| c.rgb() == (p.r(), p.g(), p.b())) {
+            return *found;
+        }
+
+        // This is not ideal but just pick the nearest color
+        *colors
+            .iter()
+            .map(|c| (c, c.rgb()))
+            .map(|(c, (r, g, b))| {
+                let dist = (i32::from(r) - i32::from(p.r())).pow(2)
+                    + (i32::from(g) - i32::from(p.g())).pow(2)
+                    + (i32::from(b) - i32::from(p.b())).pow(2);
+                (c, dist)
+            })
+            .min_by_key(|(_c, dist)| *dist)
+            .map(|(c, _)| c)
+            .unwrap_or(&OctColor::White)
+    }
+}
+
 impl From<embedded_graphics::pixelcolor::Rgb888> for OctColor {
     fn from(p: embedded_graphics::pixelcolor::Rgb888) -> OctColor {
         use embedded_graphics::prelude::RgbColor;
