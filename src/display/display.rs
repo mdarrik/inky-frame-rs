@@ -131,7 +131,8 @@ pub enum DisplayRotation {
 
 impl Default for DisplayRotation {
     fn default() -> Self {
-        DisplayRotation::Rotate0
+        // default to 180 so (0,0) is top left of display
+        DisplayRotation::Rotate180
     }
 }
 
