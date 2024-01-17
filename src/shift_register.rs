@@ -1,29 +1,34 @@
 use crate::display::IsBusy;
-use embedded_hal::digital::{InputPin, OutputPin};
-pub struct InkyFrameShiftRegister<GpioOutput, GpioInput> {
+use embedded_hal::{digital::{InputPin, OutputPin}, delay::DelayNs};
+pub struct InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY> {
     clock_pin: GpioOutput,
     latch_pin: GpioOutput,
     out_pin: GpioInput,
+    delay: DELAY
 }
 
 const IS_BUSY_FLAG: u8 = 7;
 
-impl<GpioOutput, GpioInput, GpioE> InkyFrameShiftRegister<GpioOutput, GpioInput>
+impl<GpioOutput, GpioInput, GpioE, DELAY> InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY>
 where
     GpioOutput: OutputPin<Error = GpioE>,
     GpioInput: InputPin<Error = GpioE>,
+    DELAY: DelayNs
 {
-    pub fn new(clock_pin: GpioOutput, latch_pin: GpioOutput, out_pin: GpioInput) -> Self {
+    pub fn new(clock_pin: GpioOutput, latch_pin: GpioOutput, out_pin: GpioInput, delay: DELAY) -> Self {
         InkyFrameShiftRegister {
             clock_pin,
             latch_pin,
             out_pin,
+            delay
         }
     }
 
     pub fn read_register(&mut self) -> Result<u8, GpioE> {
         self.latch_pin.set_low()?;
+        self.delay.delay_us(1);
         self.latch_pin.set_high()?;
+        self.delay.delay_us(1);
         let mut result = 0u8;
         let mut bits = 8u8;
 
@@ -36,9 +41,10 @@ where
                 result |= 0;
             }
             self.clock_pin.set_low()?;
+            self.delay.delay_us(1);
             self.clock_pin.set_high()?;
+            self.delay.delay_us(1);
         }
-        // defmt::trace!("shift register value {}", &result);
         Ok(result)
     }
 
@@ -47,14 +53,14 @@ where
     }
 }
 
-impl<GpioOutput, GpioInput, GpioE> IsBusy for InkyFrameShiftRegister<GpioOutput, GpioInput>
+impl<GpioOutput, GpioInput, GpioE, DELAY> IsBusy for InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY>
 where
     GpioOutput: OutputPin<Error = GpioE>,
     GpioInput: InputPin<Error = GpioE>,
+    DELAY: DelayNs
 {
     fn is_busy(&mut self) -> bool {
         if let Ok(res) = self.read_register_bit(IS_BUSY_FLAG) {
-            defmt::trace!("shift_register_busy_flag {}", res == 0);
             return res == 0;
         } else {
             return false;
