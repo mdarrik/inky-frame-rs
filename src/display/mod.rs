@@ -21,7 +21,7 @@ mod traits;
 use crate::display::interface::DisplayInterface;
 use color::OctColor;
 pub use display::InkyFrameDisplay;
-use embedded_hal::{blocking::spi::Write, digital::v2::OutputPin};
+use embedded_hal::{digital::OutputPin, spi::SpiDevice, delay::DelayNs};
 pub use traits::IsBusy;
 
 use self::command::Command;
@@ -35,125 +35,122 @@ pub const DEFAULT_BACKGROUND_COLOR: OctColor = OctColor::White;
 
 /// Epd5in65f driver
 ///
-pub struct InkyFrame5_7<SPI, CS, DC, RST> {
+pub struct InkyFrame5_7<SPI, DC, RST, DELAY> {
     /// Connection Interface
-    interface: DisplayInterface<SPI, CS, DC, RST>,
+    interface: DisplayInterface<SPI, DC, RST, DELAY>,
     /// Background Color
     color: OctColor,
 }
 
-impl<SPI, CS, DC, RST> InkyFrame5_7<SPI, CS, DC, RST>
+impl<SPI, DC, RST, DELAY> InkyFrame5_7<SPI, DC, RST, DELAY>
 where
-    SPI: Write<u8>,
-    CS: OutputPin,
+    SPI: SpiDevice,
     DC: OutputPin,
     RST: OutputPin,
+    DELAY: DelayNs
 {
     pub const WIDTH: u32 = WIDTH;
     pub const HEIGHT: u32 = HEIGHT;
 
     pub fn new(
-        spi: &mut SPI,
-        cs: CS,
+        spi: SPI,
         dc: DC,
         rst: RST,
+        delay: DELAY,
         busy_signal: &mut impl IsBusy,
+        
     ) -> Result<Self, SPI::Error> {
-        let interface = DisplayInterface::new(cs, dc, rst);
+        let interface = DisplayInterface::new(dc, spi, rst, delay);
         let color = DEFAULT_BACKGROUND_COLOR;
 
-        let mut epd = InkyFrame5_7 { interface, color };
-        epd.init(spi, busy_signal)?;
+        let mut inky_frame = InkyFrame5_7 { interface, color };
+        inky_frame.init(busy_signal)?;
 
-        Ok(epd)
+        Ok(inky_frame)
     }
 
-    fn init(&mut self, spi: &mut SPI, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+    fn init(&mut self, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
+        
         self.interface.reset(busy_signal);
-        self.cmd_with_data(spi, Command::PanelSetting, &[0xEF, 0x08])?;
-        self.cmd_with_data(spi, Command::PowerSetting, &[0x37, 0x00, 0x23, 0x23])?;
-        self.cmd_with_data(spi, Command::PowerOffSequenceSetting, &[0x00])?;
-        self.cmd_with_data(spi, Command::BoosterSoftStart, &[0xC7, 0xC7, 0x1D])?;
-        self.cmd_with_data(spi, Command::PllControl, &[0x3C])?;
-        self.cmd_with_data(spi, Command::TemperatureSensor, &[0x00])?;
-        self.cmd_with_data(spi, Command::VcomAndDataIntervalSetting, &[0x37])?;
-        self.cmd_with_data(spi, Command::TconSetting, &[0x22])?;
-        self.send_resolution(spi)?;
-        self.cmd_with_data(spi, Command::FlashMode, &[0xAA])?;
+        self.busy_wait(busy_signal);
+        self.cmd_with_data(Command::PanelSetting, &[0xEF, 0x08])?;
+        self.cmd_with_data(Command::PowerSetting, &[0x37, 0x00, 0x23, 0x23])?;
+        self.cmd_with_data( Command::PowerOffSequenceSetting, &[0x00])?;
+        self.cmd_with_data( Command::BoosterSoftStart, &[0xC7, 0xC7, 0x1D])?;
+        self.cmd_with_data( Command::PllControl, &[0x3C])?;
+        self.cmd_with_data( Command::TemperatureSensor, &[0x00])?;
+        self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x37])?;
+        self.cmd_with_data( Command::TconSetting, &[0x22])?;
+        self.send_resolution()?;
+        self.cmd_with_data( Command::FlashMode, &[0xAA])?;
 
-        // delay.delay_ms(100);
-
-        self.cmd_with_data(spi, Command::VcomAndDataIntervalSetting, &[0x37])
+        self.interface.delay.delay_ms(100);
+        self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x37])
     }
 
-    pub fn power_off(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
+    pub fn power_off(&mut self) -> Result<(), SPI::Error> {
         // self.interface.wait_until_idle(100, delay);
-        self.interface.cmd(spi, Command::PowerOff)
+        self.interface.cmd(Command::PowerOff)
     }
 
     pub fn wake_up(
         &mut self,
-        spi: &mut SPI,
         busy_signal: &mut impl IsBusy,
     ) -> Result<(), SPI::Error> {
-        self.init(spi, busy_signal)
+        self.init(busy_signal)
     }
 
-    pub fn sleep(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
-        self.cmd_with_data(spi, Command::DeepSleep, &[0xA5])
+    pub fn sleep(&mut self,) -> Result<(), SPI::Error> {
+        self.cmd_with_data(Command::DeepSleep, &[0xA5])
     }
 
     pub fn update_frame(
         &mut self,
-        spi: &mut SPI,
         busy_signal: &mut impl IsBusy,
         buffer: &[u8],
     ) -> Result<(), SPI::Error> {
         self.busy_wait(busy_signal);
-        self.update_vcom(spi)?;
-        self.send_resolution(spi)?;
-        self.cmd_with_data(spi, Command::DataStartTransmission1, buffer)?;
-        self.command(spi, Command::DataStop)
+        self.update_vcom()?;
+        self.send_resolution()?;
+        self.cmd_with_data(Command::DataStartTransmission1, buffer)?;
+        self.command(Command::DataStop)
     }
 
     pub fn display_frame(
         &mut self,
-        spi: &mut SPI,
         busy_signal: &mut impl IsBusy,
     ) -> Result<(), SPI::Error> {
         self.busy_wait(busy_signal);
-        self.command(spi, Command::PowerOn)?;
+        self.command( Command::PowerOn)?;
         self.busy_wait(busy_signal);
-        self.command(spi, Command::DisplayRefresh)?;
+        self.command(Command::DisplayRefresh)?;
         self.busy_wait(busy_signal);
-        self.command(spi, Command::PowerOff)?;
+        self.command(Command::PowerOff)?;
         self.busy_wait(busy_signal);
         Ok(())
     }
 
     pub fn update_and_display_frame(
         &mut self,
-        spi: &mut SPI,
         busy_signal: &mut impl IsBusy,
         buffer: &[u8],
     ) -> Result<(), SPI::Error> {
-        self.update_frame(spi, busy_signal, buffer)?;
-        self.display_frame(spi, busy_signal)?;
+        self.update_frame(busy_signal, buffer)?;
+        self.display_frame( busy_signal)?;
         Ok(())
     }
 
     pub fn clear_frame(
         &mut self,
-        spi: &mut SPI,
         busy_signal: &mut impl IsBusy,
     ) -> Result<(), SPI::Error> {
         let bg = OctColor::colors_byte(self.color, self.color);
         self.busy_wait(busy_signal);
-        self.update_vcom(spi)?;
-        self.send_resolution(spi)?;
-        self.command(spi, Command::DataStartTransmission1)?;
-        self.interface.data_x_times(spi, bg, WIDTH / 2 * HEIGHT)?;
-        self.display_frame(spi, busy_signal)?;
+        self.update_vcom()?;
+        self.send_resolution()?;
+        self.command( Command::DataStartTransmission1)?;
+        self.interface.data_x_times( bg, WIDTH / 2 * HEIGHT)?;
+        self.display_frame( busy_signal)?;
         Ok(())
     }
 
@@ -169,37 +166,36 @@ where
         HEIGHT
     }
 
-    fn command(&mut self, spi: &mut SPI, command: Command) -> Result<(), SPI::Error> {
-        self.interface.cmd(spi, command)
+    fn command(&mut self, command: Command) -> Result<(), SPI::Error> {
+        self.interface.cmd( command)
     }
 
-    fn send_data(&mut self, spi: &mut SPI, data: &[u8]) -> Result<(), SPI::Error> {
-        self.interface.data(spi, data)
+    fn send_data(&mut self, data: &[u8]) -> Result<(), SPI::Error> {
+        self.interface.data(data)
     }
 
     fn cmd_with_data(
         &mut self,
-        spi: &mut SPI,
         command: Command,
         data: &[u8],
     ) -> Result<(), SPI::Error> {
-        self.interface.cmd_with_data(spi, command, data)
+        self.interface.cmd_with_data( command, data)
     }
 
-    fn send_resolution(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
+    fn send_resolution(&mut self) -> Result<(), SPI::Error> {
         let w = self::WIDTH;
         let h = self::HEIGHT;
 
-        self.command(spi, Command::TconResolution)?;
-        self.send_data(spi, &[(w >> 8) as u8])?;
-        self.send_data(spi, &[w as u8])?;
-        self.send_data(spi, &[(h >> 8) as u8])?;
-        self.send_data(spi, &[h as u8])
+        self.command( Command::TconResolution)?;
+        self.send_data( &[(w >> 8) as u8])?;
+        self.send_data(&[w as u8])?;
+        self.send_data(&[(h >> 8) as u8])?;
+        self.send_data(&[h as u8])
     }
 
-    fn update_vcom(&mut self, spi: &mut SPI) -> Result<(), SPI::Error> {
+    fn update_vcom(&mut self) -> Result<(), SPI::Error> {
         let bg_color = (self.color.get_nibble() & 0b111) << 5;
-        self.cmd_with_data(spi, Command::VcomAndDataIntervalSetting, &[0x17 | bg_color])?;
+        self.cmd_with_data( Command::VcomAndDataIntervalSetting, &[0x17 | bg_color])?;
         Ok(())
     }
 

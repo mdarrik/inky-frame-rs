@@ -1,5 +1,5 @@
 use crate::display::IsBusy;
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::digital::{InputPin, OutputPin};
 pub struct InkyFrameShiftRegister<GpioOutput, GpioInput> {
     clock_pin: GpioOutput,
     latch_pin: GpioOutput,
@@ -38,7 +38,7 @@ where
             self.clock_pin.set_low()?;
             self.clock_pin.set_high()?;
         }
-
+        // defmt::trace!("shift register value {}", &result);
         Ok(result)
     }
 
@@ -54,6 +54,7 @@ where
 {
     fn is_busy(&mut self) -> bool {
         if let Ok(res) = self.read_register_bit(IS_BUSY_FLAG) {
+            defmt::trace!("shift_register_busy_flag {}", res == 0);
             return res == 0;
         } else {
             return false;
