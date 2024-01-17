@@ -1,34 +1,26 @@
 use crate::display::traits::Command;
 
-use embedded_hal::{delay::DelayNs, digital::OutputPin, spi::SpiDevice};
+use embedded_hal::{digital::OutputPin, spi::SpiDevice};
 
 use super::IsBusy;
 /// Interface for the display
-pub(crate) struct DisplayInterface<SPI, DC, RST, DELAY> {
+pub(crate) struct DisplayInterface<SPI, DC, RST> {
     /// SPI
     spi: SPI,
     /// Data/Command Control Pin (High for data, Low for command)
     dc: DC,
     /// Pin for Resetting
     rst: RST,
-    /// something that implements embedded-hal's delayNS trait
-   pub delay: DELAY,
 }
 
-impl<SPI, DC, RST, DELAY> DisplayInterface<SPI, DC, RST, DELAY>
+impl<SPI, DC, RST> DisplayInterface<SPI, DC, RST>
 where
     SPI: SpiDevice,
     DC: OutputPin,
     RST: OutputPin,
-    DELAY: DelayNs,
 {
-    pub fn new(dc: DC, spi: SPI, rst: RST, delay: DELAY) -> Self {
-        DisplayInterface {
-            spi,
-            dc,
-            rst,
-            delay,
-        }
+    pub fn new(dc: DC, spi: SPI, rst: RST) -> Self {
+        DisplayInterface { spi, dc, rst }
     }
 
     /// Basic function for sending [Commands](Command).
@@ -76,7 +68,6 @@ where
         // Transfer data (u8) over spi
         for _ in 0..repetitions {
             self.write(&[val])?;
-            // self.delay.delay_ns(1);
         }
         Ok(())
     }
@@ -90,20 +81,13 @@ where
 
     /// waits until the device is not busy
     pub(crate) fn wait_until_idle(&mut self, busy_signal: &mut impl IsBusy) {
-        while busy_signal.is_busy() {
-            // adds a small delay between reads
-            self.delay.delay_ms(1000);
-        }
-        defmt::trace!("Device not busy");
-        self.delay.delay_ms(1000);
+        while busy_signal.is_busy() {}
     }
 
     /// reset the display using the reset pin
     pub(crate) fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
-        self.delay.delay_ms(100);
         let _ = self.rst.set_high();
-        self.delay.delay_ms(100);
         self.wait_until_idle(busy_signal);
     }
 }
