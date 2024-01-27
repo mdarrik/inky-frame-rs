@@ -20,8 +20,6 @@ mod display;
 use color::OctColor;
 pub use display::InkyFrameDisplay;
 use embedded_hal::{digital::OutputPin, spi::SpiDevice};
-pub use crate::IsBusy;
-
 use self::command::Command;
 
 /// Width of the display
@@ -241,4 +239,11 @@ where
         self.spi.write(data)?;
         Ok(())
     }
+}
+
+
+/// Trait for determining if the e-ink display is busy
+/// This could be the busy_pin for the inky impression or the shift_register for inky frame
+pub trait IsBusy {
+    fn is_busy(&mut self) -> bool;
 }
