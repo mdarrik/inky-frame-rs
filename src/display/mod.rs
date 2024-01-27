@@ -15,14 +15,12 @@ pub mod color;
  */
 mod command;
 mod display;
-mod interface;
-mod traits;
 
-use crate::display::interface::DisplayInterface;
+// use crate::display::interface::DisplayInterface;
 use color::OctColor;
 pub use display::InkyFrameDisplay;
 use embedded_hal::{digital::OutputPin, spi::SpiDevice};
-pub use traits::IsBusy;
+pub use crate::IsBusy;
 
 use self::command::Command;
 
@@ -33,11 +31,19 @@ pub const HEIGHT: u32 = 448;
 /// Default Background Color
 pub const DEFAULT_BACKGROUND_COLOR: OctColor = OctColor::White;
 
-/// Epd5in65f driver
-///
+/// Driver for the Inky 5.7" 7 color e-ink display.
+/// This should cover both the inky frame and inky impression drivers
+/// Both are based off of the
 pub struct InkyFrame5_7<SPI, DC, RST> {
+    /// SPI Device - used for writing data to the display
+    spi: SPI,
+    /// Data/Command Control Pin (High for data, Low for command)
+    dc: DC,
+    /// Pin for Resetting
+    rst: RST,
+
     /// Connection Interface
-    interface: DisplayInterface<SPI, DC, RST>,
+    // interface: DisplayInterface<SPI, DC, RST>,
     /// Background Color
     color: OctColor,
 }
@@ -57,17 +63,21 @@ where
         rst: RST,
         busy_signal: &mut impl IsBusy,
     ) -> Result<Self, SPI::Error> {
-        let interface = DisplayInterface::new(dc, spi, rst);
         let color = DEFAULT_BACKGROUND_COLOR;
 
-        let mut inky_frame = InkyFrame5_7 { interface, color };
+        let mut inky_frame = InkyFrame5_7 {
+            spi,
+            dc,
+            rst,
+            color,
+        };
         inky_frame.init(busy_signal)?;
 
         Ok(inky_frame)
     }
 
     fn init(&mut self, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
-        self.interface.reset(busy_signal);
+        self.reset(busy_signal);
         self.busy_wait(busy_signal);
         self.cmd_with_data(Command::PanelSetting, &[0xEF, 0x08])?;
         self.cmd_with_data(Command::PowerSetting, &[0x37, 0x00, 0x23, 0x23])?;
@@ -83,8 +93,7 @@ where
     }
 
     pub fn power_off(&mut self) -> Result<(), SPI::Error> {
-        // self.interface.wait_until_idle(100, delay);
-        self.interface.cmd(Command::PowerOff)
+        self.command(Command::PowerOff)
     }
 
     pub fn wake_up(&mut self, busy_signal: &mut impl IsBusy) -> Result<(), SPI::Error> {
@@ -134,7 +143,7 @@ where
         self.update_vcom()?;
         self.send_resolution()?;
         self.command(Command::DataStartTransmission1)?;
-        self.interface.data_x_times(bg, WIDTH / 2 * HEIGHT)?;
+        self.data_x_times(bg, WIDTH / 2 * HEIGHT)?;
         self.display_frame(busy_signal)?;
         Ok(())
     }
@@ -151,16 +160,64 @@ where
         HEIGHT
     }
 
+    /// update the vcom setting to related to the default background color
+    fn update_vcom(&mut self) -> Result<(), SPI::Error> {
+        let bg_color = (self.color.get_nibble() & 0b111) << 5;
+        self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x17 | bg_color])?;
+        Ok(())
+    }
+
+    /// reset the display using the reset pin
+    pub fn reset(&mut self, busy_signal: &mut impl IsBusy) {
+        let _ = self.rst.set_low();
+        let _ = self.rst.set_high();
+        self.busy_wait(busy_signal);
+    }
+
+
+    // helpers for sending data
+
+    /// Write's a command to the e-ink display. 
+    /// Pairs with send_data to interact with the device. 
     fn command(&mut self, command: Command) -> Result<(), SPI::Error> {
-        self.interface.cmd(command)
+        // low for commands
+        let _ = self.dc.set_low();
+
+        // Transfer the command over spi
+        self.write(&[command.address()])
     }
 
+    /// Basic function for sending an array of u8-values of data over spi
+    /// Enables direct interaction with the device with the help of [command()](InkyFrame5_7::command())
     fn send_data(&mut self, data: &[u8]) -> Result<(), SPI::Error> {
-        self.interface.data(data)
+        // high for data
+        let _ = self.dc.set_high();
+
+        for val in data.iter().copied() {
+            // Transfer data one u8 at a time over spi
+            self.write(&[val])?;
+        }
+
+        Ok(())
     }
 
+    /// Basic function for sending the same byte of data (one u8) multiple times over spi
+    ///
+    /// Enables direct interaction with the device with the help of [command()](InkyFrame5_7::command())
+    pub(crate) fn data_x_times(&mut self, val: u8, repetitions: u32) -> Result<(), SPI::Error> {
+        // high for data
+        let _ = self.dc.set_high();
+        // Transfer data (u8) over spi
+        for _ in 0..repetitions {
+            self.write(&[val])?;
+        }
+        Ok(())
+    }
+
+    /// Basic function for sending [Commands](Command) and the data belonging to it.
     fn cmd_with_data(&mut self, command: Command, data: &[u8]) -> Result<(), SPI::Error> {
-        self.interface.cmd_with_data(command, data)
+        self.command(command)?;
+        self.send_data(data)
     }
 
     fn send_resolution(&mut self) -> Result<(), SPI::Error> {
@@ -174,13 +231,14 @@ where
         self.send_data(&[h as u8])
     }
 
-    fn update_vcom(&mut self) -> Result<(), SPI::Error> {
-        let bg_color = (self.color.get_nibble() & 0b111) << 5;
-        self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x17 | bg_color])?;
-        Ok(())
+    fn busy_wait(&mut self, busy_signal: &mut impl IsBusy) {
+        while busy_signal.is_busy() {}
     }
 
-    fn busy_wait(&mut self, busy_signal: &mut impl IsBusy) {
-        self.interface.wait_until_idle(busy_signal)
+    /// spi write helper/abstraction function
+    fn write(&mut self, data: &[u8]) -> Result<(), SPI::Error> {
+        // transfer spi data
+        self.spi.write(data)?;
+        Ok(())
     }
 }
