@@ -17,10 +17,13 @@ mod command;
 mod display;
 
 // use crate::display::interface::DisplayInterface;
+use self::command::Command;
 use color::OctColor;
 pub use display::InkyFrameDisplay;
-use embedded_hal::{digital::OutputPin, spi::SpiDevice};
-use self::command::Command;
+use embedded_hal::{
+    digital::OutputPin,
+    spi::{self, SpiDevice},
+};
 
 /// Width of the display
 pub const WIDTH: u32 = 600;
@@ -168,15 +171,15 @@ where
     /// reset the display using the reset pin
     pub fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
+        let _ = self.spi.transaction(&mut [spi::Operation::DelayNs(1)]);
         let _ = self.rst.set_high();
         self.busy_wait(busy_signal);
     }
 
-
     // helpers for sending data
 
-    /// Write's a command to the e-ink display. 
-    /// Pairs with send_data to interact with the device. 
+    /// Write's a command to the e-ink display.
+    /// Pairs with send_data to interact with the device.
     fn command(&mut self, command: Command) -> Result<(), SPI::Error> {
         // low for commands
         let _ = self.dc.set_low();
@@ -240,7 +243,6 @@ where
         Ok(())
     }
 }
-
 
 /// Trait for determining if the e-ink display is busy
 /// This could be the busy_pin for the inky impression or the shift_register for inky frame
