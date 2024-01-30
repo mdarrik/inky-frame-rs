@@ -90,6 +90,7 @@ where
         self.cmd_with_data(Command::TconSetting, &[0x22])?;
         self.send_resolution()?;
         self.cmd_with_data(Command::FlashMode, &[0xAA])?;
+        self.spi.transaction(&mut [spi::Operation::DelayNs(100)])?;
         self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x37])
     }
 
