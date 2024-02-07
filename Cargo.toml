@@ -11,9 +11,6 @@ keywords = ["no-std", "e-ink", "embedded-graphics"]
 [dependencies]
 defmt = { version = "0.3", optional = true }
 embedded-graphics = { version = "0.8.1", optional = true, features = ["defmt"] }
-embedded-hal-2 = { package = "embedded-hal", version = "0.2.7", features = [
-    "unproven",
-] }
 embedded-hal = { version = "^1.0.0" }
 
 
