@@ -1,10 +1,13 @@
 use crate::display::IsBusy;
-use embedded_hal::{digital::{InputPin, OutputPin}, delay::DelayNs};
+use embedded_hal::{
+    delay::DelayNs,
+    digital::{InputPin, OutputPin},
+};
 pub struct InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY> {
     clock_pin: GpioOutput,
     latch_pin: GpioOutput,
     out_pin: GpioInput,
-    delay: DELAY
+    delay: DELAY,
 }
 
 const IS_BUSY_FLAG: u8 = 7;
@@ -13,14 +16,19 @@ impl<GpioOutput, GpioInput, GpioE, DELAY> InkyFrameShiftRegister<GpioOutput, Gpi
 where
     GpioOutput: OutputPin<Error = GpioE>,
     GpioInput: InputPin<Error = GpioE>,
-    DELAY: DelayNs
+    DELAY: DelayNs,
 {
-    pub fn new(clock_pin: GpioOutput, latch_pin: GpioOutput, out_pin: GpioInput, delay: DELAY) -> Self {
+    pub fn new(
+        clock_pin: GpioOutput,
+        latch_pin: GpioOutput,
+        out_pin: GpioInput,
+        delay: DELAY,
+    ) -> Self {
         InkyFrameShiftRegister {
             clock_pin,
             latch_pin,
             out_pin,
-            delay
+            delay,
         }
     }
 
@@ -53,11 +61,13 @@ where
     }
 }
 
-impl<GpioOutput, GpioInput, GpioE, DELAY> IsBusy for InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY>
+#[cfg(feature = "display")]
+impl<GpioOutput, GpioInput, GpioE, DELAY> IsBusy
+    for InkyFrameShiftRegister<GpioOutput, GpioInput, DELAY>
 where
     GpioOutput: OutputPin<Error = GpioE>,
     GpioInput: InputPin<Error = GpioE>,
-    DELAY: DelayNs
+    DELAY: DelayNs,
 {
     fn is_busy(&mut self) -> bool {
         if let Ok(res) = self.read_register_bit(IS_BUSY_FLAG) {
