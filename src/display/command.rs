@@ -1,4 +1,3 @@
-use crate::display::traits;
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(crate) enum Command {
@@ -104,8 +103,10 @@ pub(crate) enum Command {
     TsSet = 0xE5,
 }
 
-impl traits::Command for Command {
-    fn address(self) -> u8 {
+impl Command {
+    ///Converts the command to the numeric address of the command
+    /// this lets us send the address over SPI
+    pub fn address(self) -> u8 {
         self as u8
     }
 }
