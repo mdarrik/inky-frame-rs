@@ -20,10 +20,7 @@ mod display;
 use self::command::Command;
 use color::OctColor;
 pub use display::InkyFrameDisplay;
-use embedded_hal::{
-    digital::OutputPin,
-    spi::{self, SpiDevice},
-};
+use embedded_hal::{digital::OutputPin, spi::SpiDevice};
 
 /// Width of the display
 pub const WIDTH: u32 = 600;
@@ -35,7 +32,7 @@ pub const DEFAULT_BACKGROUND_COLOR: OctColor = OctColor::White;
 /// Driver for the Inky 5.7" 7 color e-ink display.
 /// This should cover both the inky frame and inky impression drivers
 /// Both are based off of the
-pub struct InkyFrame5_7<SPI, DC, RST> {
+pub struct InkyFrame5_7<SPI, DC, RST, DELAY> {
     /// SPI Device - used for writing data to the display
     spi: SPI,
     /// Data/Command Control Pin (High for data, Low for command)
@@ -44,16 +41,17 @@ pub struct InkyFrame5_7<SPI, DC, RST> {
     rst: RST,
 
     /// Connection Interface
-    // interface: DisplayInterface<SPI, DC, RST>,
     /// Background Color
     color: OctColor,
+    delay: DELAY,
 }
 
-impl<SPI, DC, RST> InkyFrame5_7<SPI, DC, RST>
+impl<SPI, DC, RST, DELAY> InkyFrame5_7<SPI, DC, RST, DELAY>
 where
     SPI: SpiDevice,
     DC: OutputPin,
     RST: OutputPin,
+    DELAY: embedded_hal::delay::DelayNs,
 {
     pub const WIDTH: u32 = WIDTH;
     pub const HEIGHT: u32 = HEIGHT;
@@ -62,6 +60,7 @@ where
         spi: SPI,
         dc: DC,
         rst: RST,
+        delay: DELAY,
         busy_signal: &mut impl IsBusy,
     ) -> Result<Self, SPI::Error> {
         let color = DEFAULT_BACKGROUND_COLOR;
@@ -71,6 +70,7 @@ where
             dc,
             rst,
             color,
+            delay,
         };
         inky_frame.init(busy_signal)?;
 
@@ -90,7 +90,7 @@ where
         self.cmd_with_data(Command::TconSetting, &[0x22])?;
         self.send_resolution()?;
         self.cmd_with_data(Command::FlashMode, &[0xAA])?;
-        self.spi.transaction(&mut [spi::Operation::DelayNs(100)])?;
+        self.delay.delay_ms(10);
         self.cmd_with_data(Command::VcomAndDataIntervalSetting, &[0x37])
     }
 
@@ -172,8 +172,9 @@ where
     /// reset the display using the reset pin
     pub fn reset(&mut self, busy_signal: &mut impl IsBusy) {
         let _ = self.rst.set_low();
-        let _ = self.spi.transaction(&mut [spi::Operation::DelayNs(1)]);
+        self.delay.delay_ms(10);
         let _ = self.rst.set_high();
+        self.delay.delay_ms(10);
         self.busy_wait(busy_signal);
     }
 
